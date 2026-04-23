@@ -1,0 +1,14 @@
+# User data
+data/expenses.json
+data/config.json
+data/report-*.html
+data/report-*.csv
+data/*.lock
+data/*.tmp
+
+# Keep data directory
+!data/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
