@@ -1,7 +1,7 @@
 ---
 name: spending-log
-description: 个人支出记账。当用户提到记账、花了、消费、支出、账单、开销、统计消费、月度报表时触发。支持自然语言记账、自动分类、月度统计、预算提醒和月度报表生成。
-version: 1.0.0
+description: 个人支出记账。当用户提到记账、花了、消费、支出、账单、开销、统计消费、月度报表、搜索消费、消费排行时触发。支持自然语言记账、自动分类、月度统计、关键词搜索、支出排行、预算提醒和月度报表生成。
+version: 1.1.0
 ---
 
 # 消费记录
@@ -85,9 +85,14 @@ python3 scripts/query.py --from 2026-04-10 --to 2026-04-15
 
 # 查全量数据
 python3 scripts/query.py --all
+
+# 按关键词搜索（模糊匹配描述和分类，不区分大小写）
+python3 scripts/query.py --search 打车
+python3 scripts/query.py --search 奶茶 --days 30
+python3 scripts/query.py --search 外卖 --format detail
 ```
 
-默认按日期倒序排列。`--days` 使用精确的日期边界（当天 00:00 起），避免模糊区间。`--month` 和 `--days` 同时传时优先 `--month`。
+默认按日期倒序排列。`--days` 使用精确的日期边界（当天 00:00 起），避免模糊区间。`--month` 和 `--days` 同时传时优先 `--month`。`--search` 可与日期/分类筛选组合使用。
 
 脚本会返回：笔数、合计金额、逐笔明细。直接将结果呈现给用户即可。
 
@@ -96,6 +101,30 @@ python3 scripts/query.py --all
 每次记账后自动检查：**当月累计支出是否超过月预算（默认2000元）**。超过时主动提醒用户。
 
 用户也可主动问"预算还剩多少"来查询。
+
+### 支出排行
+
+"花钱最多的是哪些" / "最近买什么最频繁" / "消费排行"
+
+```bash
+# 本月消费金额 TOP5
+python3 scripts/query.py --rank amount
+
+# 本月消费金额 TOP10
+python3 scripts/query.py --rank amount --top 10
+
+# 本月消费频率 TOP5（按描述聚合）
+python3 scripts/query.py --rank freq
+
+# 指定月份排行
+python3 scripts/query.py --rank freq --month 2026-03
+```
+
+排行支持两种模式：
+- `amount` — 按金额降序，显示最高消费记录
+- `freq` — 按描述聚合，显示消费频率最高的项目（笔数、合计、均价）
+
+`--rank` 可与 `--month`、`--days`、`--search` 等筛选条件组合。
 
 ### 月度报表
 
@@ -128,3 +157,13 @@ python3 scripts/report.py --month 2026-04 --csv
 ## 月底提醒
 
 通过 `openclaw cron` 设置每月1日早上8点自动生成上月报表并发送给用户。首次设置记账后触发配置。
+
+## 每日提醒
+
+通过 `openclaw cron` 设置每天晚上 9 点提醒用户记账：
+
+```
+openclaw cron add --schedule "0 21 * * *" --message "今天有消费需要记录吗？跟我说一声就行～"
+```
+
+首次设置记账后触发配置（与月底提醒同时配置）。

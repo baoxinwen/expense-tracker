@@ -33,6 +33,14 @@ def filter_by_category(expenses, category):
     return expenses
 
 
+def filter_by_keyword(expenses, keyword):
+    """按关键词模糊匹配描述和分类（不区分大小写）"""
+    if not keyword:
+        return expenses
+    kw = keyword.lower()
+    return [e for e in expenses if kw in e.get('description', '').lower() or kw in e['category'].lower()]
+
+
 def sort_expenses(expenses, sort_key):
     if sort_key == 'date':
         expenses = sorted(expenses, key=lambda x: x['date'])
@@ -112,6 +120,44 @@ def format_json(expenses):
     print(json.dumps(expenses, ensure_ascii=False, indent=2))
 
 
+def format_rank_amount(expenses, top=5):
+    """按金额降序排行"""
+    if not expenses:
+        print("没有匹配的记录")
+        return
+
+    ranked = sorted(expenses, key=lambda x: x['amount'], reverse=True)[:top]
+    month_label = expenses[0]['date'][:7]
+    print(f"=== {month_label} 支出排行（按金额 TOP{top}）===")
+    print()
+    for i, e in enumerate(ranked, 1):
+        print(f"  {i}. ¥{e['amount']:<10.2f} {e['category']}  {e.get('description', '')}  {e['date'][5:]}")
+
+
+def format_rank_freq(expenses, top=5):
+    """按消费频率排行（按描述聚合）"""
+    if not expenses:
+        print("没有匹配的记录")
+        return
+
+    freq = defaultdict(lambda: {'count': 0, 'total': 0.0, 'category': ''})
+    for e in expenses:
+        desc = e.get('description', '').strip()
+        if not desc:
+            desc = '(无描述)'
+        freq[desc]['count'] += 1
+        freq[desc]['total'] += e['amount']
+        freq[desc]['category'] = e['category']
+
+    ranked = sorted(freq.items(), key=lambda x: x[1]['count'], reverse=True)[:top]
+    month_label = expenses[0]['date'][:7]
+    print(f"=== {month_label} 消费频率排行（TOP{top}）===")
+    print()
+    for i, (desc, info) in enumerate(ranked, 1):
+        avg = info['total'] / info['count']
+        print(f"  {i}. {desc:<10} {info['count']}笔  合计 ¥{info['total']:.2f}  均价 ¥{avg:.2f}")
+
+
 def main():
     parser = argparse.ArgumentParser(description='支出统计计算')
     parser.add_argument('--file', default='data/expenses.json', help='数据文件路径')
@@ -123,6 +169,9 @@ def main():
     parser.add_argument('--category', help='分类名称（精确匹配）')
     parser.add_argument('--limit', type=int, help='返回记录条数')
     parser.add_argument('--sort', choices=['date', 'date_desc', 'amount', 'amount_desc'], default='date_desc', help='排序方式（默认按日期倒序）')
+    parser.add_argument('--search', help='按关键词搜索描述和分类（模糊匹配）')
+    parser.add_argument('--rank', choices=['amount', 'freq'], help='排行模式：amount（金额最高）或 freq（频率最高）')
+    parser.add_argument('--top', type=int, help='排行显示前N条（默认5）')
     parser.add_argument('--format', choices=['summary', 'detail', 'json'], default='summary', help='输出格式')
 
     args = parser.parse_args()
@@ -145,12 +194,19 @@ def main():
     elif not args.all:
         expenses = filter_by_date(expenses, args)
     expenses = filter_by_category(expenses, args.category)
+    expenses = filter_by_keyword(expenses, args.search)
     expenses = sort_expenses(expenses, args.sort)
 
     if args.limit:
         expenses = expenses[:args.limit]
 
-    if args.format == 'summary':
+    if args.rank:
+        top = args.top or 5
+        if args.rank == 'amount':
+            format_rank_amount(expenses, top)
+        elif args.rank == 'freq':
+            format_rank_freq(expenses, top)
+    elif args.format == 'summary':
         format_summary(expenses, args.category, args.month)
     elif args.format == 'detail':
         format_detail(expenses, args.category, args.month)
