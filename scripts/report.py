@@ -64,6 +64,7 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
     min_day = min(by_day, key=by_day.get) if by_day else None
     max_day_date = max(by_day, key=by_day.get) if by_day else None
     most_cat = max(by_cat, key=by_cat.get) if by_cat else None
+    top5 = sorted(month_expenses, key=lambda x: x['amount'], reverse=True)[:5]
     
     budget_pct = min((total / budget) * 100, 100) if budget > 0 else 0
     over_budget = total > budget
@@ -253,7 +254,20 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
             </div>
             <div class="cat-pct">{pct:.1f}%</div>
         </div>'''
-    
+
+    # 消费 TOP5
+    top5_html = ""
+    for i, e in enumerate(top5, 1):
+        cfg = CAT_CONFIG.get(e['category'], CAT_CONFIG['其他'])
+        top5_html += f'''<div class="top5-item">
+            <span class="top5-rank">{i}</span>
+            <div style="flex:1;min-width:0">
+                <div class="top5-desc">{esc(e.get('description', ''))}</div>
+                <div class="top5-sub">{e['date'][5:]} · {cfg['emoji']} {esc(e['category'])}</div>
+            </div>
+            <span class="top5-amount">¥{e['amount']:.0f}</span>
+        </div>'''
+
     month_display = datetime.strptime(latest_month, "%Y-%m").strftime("%Y年%m月")
     
     if min_day and max_day_date and max_single and most_cat:
@@ -440,6 +454,46 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
   }}
   .stat-item:hover .stat-tip {{ opacity: 1; }}
 
+  /* ---- 消费 TOP5 ---- */
+  .top5-list {{ display: flex; flex-direction: column; gap: 2px; }}
+  .top5-item {{
+    display: flex; align-items: center; gap: 10px; padding: 12px 8px;
+    border-radius: 10px; position: relative; cursor: default;
+    transition: background .15s ease;
+  }}
+  .top5-item:hover {{ background: #f7f3ee; }}
+  .top5-rank {{
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent-light); color: var(--accent);
+    font-size: 11px; font-weight: 600; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
+  }}
+  .top5-item:nth-child(1) .top5-rank {{ background: var(--accent); color: #fff; }}
+  .top5-item:nth-child(2) .top5-rank {{ background: #d4a87a; color: #fff; }}
+  .top5-item:nth-child(3) .top5-rank {{ background: #e0c4a8; color: #fff; }}
+  .top5-desc {{ flex: 1; font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+  .top5-sub {{ font-size: 11px; color: var(--text-light); margin-top: 2px; }}
+  .top5-amount {{ font-size: 15px; font-weight: 500; color: #a8604c; font-variant-numeric: tabular-nums; flex-shrink: 0; }}
+  .top5-tip {{
+    position: absolute; bottom: calc(100% + 6px); left: 36px;
+    background: #fff; border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 11px; color: var(--text-mid);
+    box-shadow: var(--shadow-hover); white-space: nowrap;
+    opacity: 0; pointer-events: none; transition: opacity .15s ease; z-index: 5;
+  }}
+  .top5-item:hover .top5-tip {{ opacity: 1; }}
+
+  /* ---- 搜索输入框 ---- */
+  .filter-input {{
+    padding: 6px 14px; border-radius: 20px;
+    border: 1px solid var(--border); background: #fff;
+    color: var(--text); font-size: 12px; font-family: inherit;
+    outline: none; transition: all .2s ease; width: 160px;
+  }}
+  .filter-input::placeholder {{ color: var(--text-light); }}
+  .filter-input:focus {{ border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }}
+  .filter-input:hover {{ border-color: #d4b89a; }}
+
   /* ---- 饼图 ---- */
   .chart-section {{ display: flex; flex-direction: column; align-items: center; position: relative; overflow: visible; }}
   .pie-wrap {{ position: relative; margin: 8px 0 24px; overflow: visible; }}
@@ -621,7 +675,7 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
     background: var(--accent-light); border-color: #d4b89a;
   }}
   .detail-list {{ overflow-y: hidden; transition: max-height .4s ease; }}
-  .detail-list.collapsed {{ max-height: 500px; }}
+  .detail-list.collapsed {{ max-height: 300px; }}
 
   .detail-item {{
     display: flex; justify-content: space-between; align-items: center;
@@ -743,6 +797,7 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
       <div class="budget-summary">
         <span>剩余 <strong>{'-¥' + f'{abs(budget_remain):.0f}' if over_budget else '¥' + f'{budget_remain:.0f}'}</strong></span>
         <span>日均 <strong>¥{avg_daily:.0f}</strong></span>
+        <span>共 <strong>{count}</strong> 笔</span>
       </div>
     </div>
     <div class="ring">
@@ -769,11 +824,11 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
     </div>
     <div class="budget-bar"><div class="budget-bar-fill" style="width:{min(budget_pct, 100):.1f}%"></div></div>
   </div>
-  <div class="stats-row">
-    <div class="stat-item"><div class="stat-num">{count}</div><div class="stat-desc">记账笔数</div><div class="stat-tip">本月共记录 {count} 笔消费</div></div>
-    <div class="stat-item"><div class="stat-num">¥{max_single['amount']:.0f}</div><div class="stat-desc">最高单笔</div><div class="stat-tip">最高消费: {esc(max_single.get('description',''))} ({max_single['category']})</div></div>
-    <div class="stat-item"><div class="stat-num">¥{by_day[max_day_date]:.0f}</div><div class="stat-desc">最高消费</div><div class="stat-tip">{max_day_date[5:7]}月{max_day_date[8:]}号消费 ¥{by_day[max_day_date]:.2f}，花费最多的一天</div></div>
-  </div>
+</section>
+
+<section class="card">
+  <div class="card-label">消费 TOP5</div>
+  <div class="top5-list">{top5_html}</div>
 </section>
 
 {compare_html}
@@ -819,6 +874,10 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
     <span class="filter-row-label">分类</span>
     <button class="filter-chip active" data-filter="category" data-value="">全部</button>
     {''.join(f'<button class="filter-chip" data-filter="category" data-value="{esc(c)}">{CAT_CONFIG.get(c, CAT_CONFIG["其他"])["emoji"]} {esc(c)}</button>' for c, _ in sorted_cats)}
+  </div>
+  <div class="filter-row">
+    <span class="filter-row-label">搜索</span>
+    <input class="filter-input" id="searchInput" type="text" placeholder="输入关键词...">
   </div>
   <div class="filter-row">
     <span class="filter-row-label">日期</span>
@@ -1021,20 +1080,32 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
   const btn=document.getElementById('detailToggle');
   const list=document.getElementById('detailList');
   if(!btn||!list) return;
-  const total={count};
+  const items=list.querySelectorAll('.detail-item');
+  function visibleCount(){{
+    let n=0;
+    items.forEach(function(i){{ if(!i.classList.contains('hidden')) n++; }});
+    return n;
+  }}
+  window._updateToggleText=function(){{
+    if(!list.classList.contains('collapsed')){{
+      btn.textContent='收起明细';
+    }}else{{
+      btn.textContent='展开全部（'+visibleCount()+'笔）';
+    }}
+  }};
   btn.addEventListener('click',function(){{
     if(list.classList.contains('collapsed')){{
       list.classList.remove('collapsed');
       btn.textContent='收起明细';
     }}else{{
       list.classList.add('collapsed');
-      btn.textContent='展开全部（'+total+'笔）';
+      btn.textContent='展开全部（'+visibleCount()+'笔）';
       list.scrollIntoView({{behavior:'smooth',block:'start'}});
     }}
   }});
 }})();
 
-/* ---- 筛选功能（分类 AND 日期交叉筛选） ---- */
+/* ---- 筛选功能（分类 + 日期 + 搜索交叉筛选） ---- */
 (function(){{
   const items=document.querySelectorAll('.detail-item');
   const filterCount=document.getElementById('filterCount');
@@ -1046,18 +1117,24 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
   const catCards=document.querySelectorAll('.cat-card');
   const chips=document.querySelectorAll('.filter-chip');
   const dateSelect=document.getElementById('dateSelect');
+  const searchInput=document.getElementById('searchInput');
   const totalCount=items.length;
   let catFilter='';
   let dateFilter='';
+  let searchFilter='';
+  let searchTimer=null;
 
   function applyFilter(){{
     let shown=0;
+    const kw=searchFilter.toLowerCase();
     items.forEach(function(item){{
       const cat=item.getAttribute('data-category');
       const dt=item.getAttribute('data-date');
+      const desc=(item.querySelector('.detail-desc')||{{}}).textContent||'';
       const catOk=!catFilter||cat===catFilter;
       const dtOk=!dateFilter||dt===dateFilter;
-      if(catOk&&dtOk){{
+      const kwOk=!kw||desc.toLowerCase().indexOf(kw)!==-1||cat.toLowerCase().indexOf(kw)!==-1;
+      if(catOk&&dtOk&&kwOk){{
         item.classList.remove('hidden');
         item.classList.add('highlight');
         shown++;
@@ -1068,22 +1145,21 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
       }}
     }});
     /* 空状态 */
+    const hasFilter=catFilter||dateFilter||searchFilter;
     if(detailEmpty){{
-      detailEmpty.style.display=(shown===0&&!catFilter&&!dateFilter)?'none':(shown===0?'block':'none');
+      detailEmpty.style.display=(shown===0&&hasFilter)?'block':'none';
     }}
     /* 更新计数 */
     if(filterCount){{
-      if(!catFilter&&!dateFilter){{
-        filterCount.textContent='';
-      }}else{{
-        filterCount.textContent=shown+' / '+totalCount+' 笔';
-      }}
+      filterCount.textContent=hasFilter?(shown+' / '+totalCount+' 笔'):'';
     }}
     /* 清除按钮 */
     if(filterClear){{
-      if(!catFilter&&!dateFilter) filterClear.classList.remove('show');
-      else filterClear.classList.add('show');
+      if(hasFilter) filterClear.classList.add('show');
+      else filterClear.classList.remove('show');
     }}
+    /* 更新展开/收起按钮文本 */
+    if(typeof window._updateToggleText==='function') window._updateToggleText();
     /* 分类 chips 高亮 */
     chips.forEach(function(c){{
       const v=c.getAttribute('data-value');
@@ -1104,6 +1180,8 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
   function clearAll(){{
     catFilter='';
     dateFilter='';
+    searchFilter='';
+    if(searchInput) searchInput.value='';
     applyFilter();
   }}
 
@@ -1121,6 +1199,17 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
     dateSelect.addEventListener('change',function(){{
       dateFilter=dateSelect.value;
       applyFilter();
+    }});
+  }}
+
+  /* 搜索输入框（防抖 300ms） */
+  if(searchInput){{
+    searchInput.addEventListener('input',function(){{
+      clearTimeout(searchTimer);
+      searchTimer=setTimeout(function(){{
+        searchFilter=searchInput.value.trim();
+        applyFilter();
+      }},300);
     }});
   }}
 
@@ -1162,6 +1251,8 @@ def generate_report(expenses_file, config_file, output_file=None, month=None, _s
       dateFilter='';
       catFilter=(catFilter===value)?'':value;
     }}
+    searchFilter='';
+    if(searchInput) searchInput.value='';
     applyFilter();
     /* 展开明细 */
     if(detailList&&detailList.classList.contains('collapsed')){{
